@@ -97,14 +97,14 @@ export async function renderReview(root, params = {}) {
       });
       personasEl.appendChild(b);
     }
-    const p = getPersona({ ai: { personaId, personaText: settings.ai.personaText } });
+    const p = getPersona({ ai: { ...settings.ai, personaId } });
     if (personaId === 'custom') {
-      const text = (settings.ai.personaText || '').trim();
+      const text = p.isDefault ? '' : p.prompt;
       personaDesc.innerHTML = text
         ? escapeHtml(text.slice(0, 120)) + (text.length > 120 ? '…' : '')
         : '还没写。去 <a href="#/settings" style="color:var(--accent)">设置</a> 里写一句你想要的人设。';
     } else {
-      personaDesc.textContent = p.desc + '：' + p.prompt.slice(0, 46) + '…';
+      personaDesc.textContent = (p.isDefault ? '' : '（你改过）') + p.desc + '：' + p.prompt.slice(0, 46) + '…';
     }
   }
 
@@ -226,8 +226,9 @@ export async function renderReview(root, params = {}) {
       go('#/settings?focus=api');
       return;
     }
-    if (personaId === 'custom' && !(s.ai.personaText || '').trim()) {
-      toastError('自定义人设还没写，去设置里写一句');
+    if (personaId === 'custom' && getPersona({ ai: { ...s.ai, personaId: 'custom' } }).isDefault) {
+      toastError('自定义人设还是空的，去设置里写一句');
+      go('#/settings');
       return;
     }
 

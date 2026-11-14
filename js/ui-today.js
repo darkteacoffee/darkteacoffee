@@ -481,12 +481,12 @@ export async function renderToday(root, params = {}) {
     }
     if (!items.length) return;
     const pid = personaId || s.ai.personaId || 'oldfriend';
-    if (pid === 'custom' && !(s.ai.personaText || '').trim()) {
-      toastError('自定义人设还没写，去设置里写一句');
+    const persona = getPersona({ ai: { ...s.ai, personaId: pid } });
+    if (pid === 'custom' && persona.isDefault) {
+      toastError('自定义人设还是空的，去设置里写一句');
+      go('#/settings');
       return;
     }
-
-    const persona = getPersona({ ai: { ...s.ai, personaId: pid } });
     const mat = formatMaterials(new Map([[dayKey, items]]), { dateCN, weekdayCN, timeHM });
     const messages = buildDayMessages({
       persona,

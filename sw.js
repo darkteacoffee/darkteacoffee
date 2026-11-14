@@ -1,6 +1,6 @@
 // 离线缓存。改了前端文件之后把 VERSION 加一，手机重新打开就会换新的。
 
-const VERSION = 'v1.9.0';
+const VERSION = 'v1.10.0';
 const CACHE = 'yiri-' + VERSION;
 
 const ASSETS = [

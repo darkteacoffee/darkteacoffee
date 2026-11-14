@@ -170,9 +170,10 @@ export async function renderSettings(root, params = {}) {
                 <label>人设</label>
                 <div class="persona-grid" id="personas" style="padding:0"></div>
                 <textarea id="persona-text" style="margin-top:10px;min-height:120px" placeholder="写一段你想要的人设，比如：说话直接，不要安慰我，问我问题多于给结论。"></textarea>
-                <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
+                <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
                   <div class="hint" id="persona-hint" style="margin:0;flex:1 1 auto"></div>
                   <button class="btn ghost sm" id="persona-reset" type="button" hidden style="flex:0 0 auto">恢复默认</button>
+                  <button class="btn ghost sm" id="persona-save" type="button" disabled style="flex:0 0 auto">保存</button>
                 </div>
               </div>
 
@@ -253,7 +254,7 @@ export async function renderSettings(root, params = {}) {
             <div class="card">
               <div class="row">
                 <div class="lab">
-                  <div class="t">一日 · v1.7</div>
+                  <div class="t">一日 · v1.10.0</div>
                   <div class="d">日记和图片只存在这台设备上，不上传、不需要账号。AI 只在你点「看」的时候，把选中的那几天发出去（不含图片）。</div>
                 </div>
               </div>
@@ -466,16 +467,58 @@ export async function renderSettings(root, params = {}) {
   const personaText = $('#persona-text');
   const personaHint = $('#persona-hint');
   const personaReset = $('#persona-reset');
+  const personaSave = $('#persona-save');
   let personaId = get().ai.personaId || 'oldfriend';
+  let personaSaved = ''; // 上一次保存下来的文本，用来判断有没有改动
 
-  function personaTextOf(id) {
+  function builtinPrompt(id) {
+    if (id === 'custom') return '';
+    const p = PERSONAS.find((x) => x.id === id);
+    return p ? p.prompt : '';
+  }
+
+  /** 这个人当前存着的有效文本 */
+  function storedTextOf(id) {
     const cur = get();
     const ov = cur.ai.personaOverrides || {};
     if (id === 'custom') return String(ov.custom ?? cur.ai.personaText ?? '');
     const edited = String(ov[id] || '');
-    if (edited.trim()) return edited;
-    const preset = PERSONAS.find((p) => p.id === id);
-    return preset ? preset.prompt : '';
+    return edited.trim() ? edited : builtinPrompt(id);
+  }
+
+  function setHint() {
+    const dirty = personaText.value !== personaSaved;
+    const edited = personaIsEdited(get(), personaId);
+    personaSave.disabled = !dirty;
+    personaSave.classList.toggle('primary', dirty);
+    personaSave.classList.toggle('ghost', !dirty);
+    personaHint.classList.toggle('dirty', dirty);
+
+    if (dirty) {
+      personaHint.textContent = '有改动，还没保存';
+    } else if (personaId === 'custom' && !personaText.value.trim()) {
+      personaHint.textContent = '还是空的。写一句你想让它怎么说话，然后点「保存」。';
+    } else if (edited) {
+      personaHint.textContent = '已保存。这段是你改过的，会一直生效。';
+    } else {
+      personaHint.textContent = '这是默认的人设原文，改完点「保存」。';
+    }
+  }
+
+  /** 把输入框里的内容写进设置，返回是否真的写了 */
+  function commitPersona(silent = true) {
+    if (personaText.value === personaSaved) return false;
+    const cur = get();
+    const ov = { ...(cur.ai.personaOverrides || {}) };
+    const val = personaText.value;
+    // 改回和默认一模一样，就不算「改过」
+    ov[personaId] = val.trim() === builtinPrompt(personaId).trim() ? '' : val;
+    save({ ai: { personaOverrides: ov } });
+    personaSaved = val;
+    personaReset.hidden = !personaIsEdited(get(), personaId);
+    setHint();
+    if (!silent) toastOk('人设已保存');
+    return true;
   }
 
   function paintPersonas() {
@@ -487,6 +530,7 @@ export async function renderSettings(root, params = {}) {
       b.textContent = p.name;
       b.title = p.desc;
       b.addEventListener('click', () => {
+        commitPersona(true); // 切换前先把上一段存住
         personaId = p.id;
         save({ ai: { personaId } });
         paintPersonas();
@@ -494,29 +538,16 @@ export async function renderSettings(root, params = {}) {
       personasEl.appendChild(b);
     }
 
-    personaText.value = personaTextOf(personaId);
-    const edited = personaIsEdited(get(), personaId);
-    personaReset.hidden = !edited;
-    if (personaId === 'custom' && !personaText.value.trim()) {
-      personaHint.textContent = '还没写。随便写一句你想让它怎么说话。';
-    } else {
-      personaHint.textContent = edited ? '这段话你改过，会一直生效。' : '这是默认的人设原文，可以直接在上面改。';
-    }
+    personaText.value = storedTextOf(personaId);
+    personaSaved = personaText.value;
+    personaReset.hidden = !personaIsEdited(get(), personaId);
+    setHint();
   }
 
-  let pTimer = null;
-  personaText.addEventListener('input', () => {
-    clearTimeout(pTimer);
-    pTimer = setTimeout(() => {
-      const cur = get();
-      const ov = { ...(cur.ai.personaOverrides || {}) };
-      ov[personaId] = personaText.value;
-      save({ ai: { personaOverrides: ov } });
-      personaReset.hidden = !personaIsEdited(get(), personaId);
-      personaHint.textContent = personaText.value.trim()
-        ? '这段话你改过，会一直生效。'
-        : '清空了，会用回默认的。';
-    }, 400);
+  personaText.addEventListener('input', setHint);
+
+  personaSave.addEventListener('click', () => {
+    if (!commitPersona(false)) toast('没有改动');
   });
 
   personaReset.addEventListener('click', () => {
@@ -730,8 +761,9 @@ export async function renderSettings(root, params = {}) {
   }
 
   return () => {
+    // 离开设置页之前，把没点保存的内容也存住
+    commitPersona(true);
     clearTimeout(keyTimer);
-    clearTimeout(pTimer);
     clearTimeout(bgTimer);
   };
 }
