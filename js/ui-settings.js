@@ -2,7 +2,7 @@
 
 import * as entries from './entries.js';
 import * as backup from './backup.js';
-import { get, save, applyTheme } from './settings.js';
+import { get, save, applyTheme, getStartHour } from './settings.js';
 import { toast, toastError, toastOk } from './toast.js';
 import {
   PERSONAS,
@@ -12,8 +12,13 @@ import {
   personaIsEdited,
   testConnection,
   listModels,
+  buildSystemPrompt,
+  buildUserMessage,
+  groupByDay,
+  formatMaterials,
   ApiError,
 } from './ai.js';
+import { todayKey, addDays, dateCN, weekdayCN, timeHM } from './dates.js';
 import { ICONS } from './icons.js';
 import { go } from './router.js';
 import { escapeHtml } from './markdown.js';
@@ -186,6 +191,13 @@ export async function renderSettings(root, params = {}) {
               </div>
               <div class="row">
                 <div class="lab">
+                  <div class="t">看看实际发出去的内容</div>
+                  <div class="d">把当前人设拼好的提示词原样摊开，确认 AI 真的收到了你写的那段话。</div>
+                </div>
+                <div class="ctl"><button class="btn ghost sm" id="preview-ai" type="button">预览</button></div>
+              </div>
+              <div class="row">
+                <div class="lab">
                   <div class="t">测一下</div>
                   <div class="d">发一条极短的请求，看 Key 和模型通不通。</div>
                 </div>
@@ -254,7 +266,7 @@ export async function renderSettings(root, params = {}) {
             <div class="card">
               <div class="row">
                 <div class="lab">
-                  <div class="t">一日 · v1.10.0</div>
+                  <div class="t">一日 · v1.11.0</div>
                   <div class="d">日记和图片只存在这台设备上，不上传、不需要账号。AI 只在你点「看」的时候，把选中的那几天发出去（不含图片）。</div>
                 </div>
               </div>
@@ -571,6 +583,52 @@ export async function renderSettings(root, params = {}) {
     const on = !swReminder.classList.contains('on');
     swReminder.classList.toggle('on', on);
     save({ backupReminder: on });
+  });
+
+  /* ---------- 看实际发出去的提示词 ---------- */
+  function showPreview(name, sys, user) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sheet-backdrop';
+    const cut = user.length > 1800;
+    overlay.innerHTML = `
+      <div class="sheet preview-sheet">
+        <div class="sheet-head">
+          <div class="sheet-title">人设：${escapeHtml(name)}　这是每次生成时真的发出去的东西</div>
+          <button class="btn ghost sm" id="pv-close" type="button">关闭</button>
+        </div>
+        <div class="preview-body">
+          <div class="preview-label">第一部分 · 告诉它是谁（你写的人设就在最上面）</div>
+          <pre class="preview-pre">${escapeHtml(sys)}</pre>
+          <div class="preview-label">第二部分 · 让它看的内容</div>
+          <pre class="preview-pre">${escapeHtml(cut ? user.slice(0, 1800) + '\n\n……后面还有 ' + (user.length - 1800) + ' 字' : user)}</pre>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#pv-close').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+  }
+
+  $('#preview-ai').addEventListener('click', async () => {
+    const cur = get();
+    const persona = getPersona(cur);
+    const sys = buildSystemPrompt(persona, cur.ai.length);
+
+    let user = '';
+    try {
+      const all = await entries.listAll();
+      const today = todayKey(getStartHour());
+      const from = addDays(today, -6);
+      const picked = all.filter((e) => e.dayKey >= from && e.dayKey <= today);
+      const mat = formatMaterials(groupByDay(picked), { dateCN, weekdayCN, timeHM });
+      user = buildUserMessage({ materials: mat.text || '（最近七天没有记录）', taskType: 'recent7' });
+    } catch {
+      user = buildUserMessage({ materials: '（读取失败）', taskType: 'recent7' });
+    }
+
+    showPreview(persona.name, sys, user);
   });
 
   $('#test-ai').addEventListener('click', async (e) => {

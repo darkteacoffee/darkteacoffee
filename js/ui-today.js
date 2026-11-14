@@ -427,7 +427,8 @@ export async function renderToday(root, params = {}) {
     again.type = 'button';
     again.className = 'btn ghost sm';
     again.textContent = '重新生成';
-    again.addEventListener('click', () => generateNote(note.personaId));
+    // 用「现在设置里选的那个人设」重来，不是沿用这条评价当初用的人设
+    again.addEventListener('click', () => generateNote());
 
     const swap = document.createElement('button');
     swap.type = 'button';

@@ -1005,6 +1005,36 @@ mark { background: var(--accent-soft); color: var(--accent); border-radius: 3px;
 .note-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 .note-personas { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
+/* 提示词预览 */
+.preview-sheet {
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.preview-body {
+  overflow-y: auto;
+  padding: 0 16px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+.preview-label {
+  font-size: 12px;
+  color: var(--fg-faint);
+  letter-spacing: 0.06em;
+  margin: 16px 0 7px;
+}
+.preview-pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-elev-2);
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* ---------- 图片 ---------- */
 .seg-imgs {
   display: flex;
